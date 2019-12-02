@@ -200,14 +200,6 @@ static void test_task(void *pvParameters)
 static void	message_1_callback_master(void* message)
 {
 	uint8_t* message_data = (uint8_t*)message;
-	// Send to update ADC
-	if(true == g_Adc16ConversionDoneFlag)
-	{
-		ADC16_SetChannelConfig(DEMO_ADC16_BASE, DEMO_ADC16_CHANNEL_GROUP, &adc16ChannelConfigStruct);
-		g_Adc16ConversionDoneFlag = false;
-	}
-	message_data[0] = g_Adc16ConversionValue & 0xFF;
-	message_data[1] = (g_Adc16ConversionValue & 0xFF00)>>8;
 	PRINTF("Master got response to message 1 %d,%d\r\n", message_data[0], message_data[1]);
 }
 
@@ -229,8 +221,14 @@ static void	message_1_callback_slave(void* message)
 {
 	uint8_t* message_data = (uint8_t*)message;
 	PRINTF("Slave got message 1 request\r\n");
-	message_data[0] = 79;
-	message_data[1] = 80;
+	// Send to update ADC
+	if(true == g_Adc16ConversionDoneFlag)
+	{
+		ADC16_SetChannelConfig(DEMO_ADC16_BASE, DEMO_ADC16_CHANNEL_GROUP, &adc16ChannelConfigStruct);
+		g_Adc16ConversionDoneFlag = false;
+	}
+	message_data[0] = g_Adc16ConversionValue & 0xFF;
+	message_data[1] = (g_Adc16ConversionValue & 0xFF00)>>8;
 }
 
 static void	message_2_callback_slave(void* message)
