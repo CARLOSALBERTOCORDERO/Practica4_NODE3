@@ -22,6 +22,7 @@
 #include "clock_config.h"
 #include <lin1d3_driver.h>
 #include "FreeRTOSConfig.h"
+#include "fsl_adc16.h"
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
@@ -47,7 +48,10 @@
 #define app_message_id_2_d (0x02<<2|message_size_4_bytes_d)
 #define app_message_id_3_d (0x03<<2|message_size_8_bytes_d)
 
-
+/*ADC configuration */
+#define DEMO_ADC16_BASE (ADC0)
+#define DEMO_ADC16_CHANNEL_GROUP (0U)
+#define DEMO_ADC16_USER_CHANNEL (12U)
 
 /*******************************************************************************
  * Prototypes
@@ -60,13 +64,48 @@ static void	message_3_callback_master(void* message);
 static void	message_1_callback_slave(void* message);
 static void	message_2_callback_slave(void* message);
 static void	message_3_callback_slave(void* message);
+void ADC0_IRQHandler(void);
+void ADC_init(void);
 /*******************************************************************************
  * Variables
  ******************************************************************************/
-
+// ADC
+volatile bool g_Adc16ConversionDoneFlag = false;
+volatile uint32_t g_Adc16ConversionValue;
+static adc16_channel_config_t adc16ChannelConfigStruct;
 /*******************************************************************************
  * Code
  ******************************************************************************/
+void ADC0_IRQHandler(void)
+{
+    g_Adc16ConversionDoneFlag = true;
+    g_Adc16ConversionValue = ADC16_GetChannelConversionValue(DEMO_ADC16_BASE, DEMO_ADC16_CHANNEL_GROUP);
+    /* Add for ARM errata 838869, affects Cortex-M4, Cortex-M4F Store immediate overlapping
+      exception return operation might vector to incorrect interrupt */
+#if defined __CORTEX_M && (__CORTEX_M == 4U)
+    __DSB();
+#endif
+}
+
+void ADC_init(void)
+{
+    adc16_config_t adc16ConfigStruct;
+
+
+    NVIC_EnableIRQ(ADC0_IRQn);
+    ADC16_GetDefaultConfig(&adc16ConfigStruct);
+    ADC16_Init(DEMO_ADC16_BASE, &adc16ConfigStruct);
+    ADC16_EnableHardwareTrigger(DEMO_ADC16_BASE, false); /* Make sure the software trigger is used. */
+    (void)ADC16_DoAutoCalibration(DEMO_ADC16_BASE);
+    adc16ChannelConfigStruct.channelNumber = DEMO_ADC16_USER_CHANNEL;
+    adc16ChannelConfigStruct.enableInterruptOnConversionCompleted = true;
+    adc16ChannelConfigStruct.enableDifferentialConversion = false;
+    ADC16_SetChannelConfig(DEMO_ADC16_BASE, DEMO_ADC16_CHANNEL_GROUP, &adc16ChannelConfigStruct);
+
+}
+
+
+
 /*!
  * @brief Application entry point.
  */
@@ -78,6 +117,7 @@ int main(void)
     BOARD_InitDebugConsole();
     NVIC_SetPriority(MASTER_UART_RX_TX_IRQn, 5);
     NVIC_SetPriority(SLAVE_UART_RX_TX_IRQn, 5);
+    ADC_init();
 
 
     if (xTaskCreate(test_task, "test_task", test_task_heap_size_d, NULL, init_task_PRIORITY, NULL) != pdPASS)
@@ -160,6 +200,14 @@ static void test_task(void *pvParameters)
 static void	message_1_callback_master(void* message)
 {
 	uint8_t* message_data = (uint8_t*)message;
+	// Send to update ADC
+	if(true == g_Adc16ConversionDoneFlag)
+	{
+		ADC16_SetChannelConfig(DEMO_ADC16_BASE, DEMO_ADC16_CHANNEL_GROUP, &adc16ChannelConfigStruct);
+		g_Adc16ConversionDoneFlag = false;
+	}
+	message_data[0] = g_Adc16ConversionValue & 0xFF;
+	message_data[1] = (g_Adc16ConversionValue & 0xFF00)>>8;
 	PRINTF("Master got response to message 1 %d,%d\r\n", message_data[0], message_data[1]);
 }
 

@@ -47,7 +47,7 @@ processor_version: 2.0.0
 #include "fsl_port.h"
 #include "pin_mux.h"
 
-
+#define PIN2_IDX                         2u   /*!< Pin number for pin 2 in a port */
 #define PIN14_IDX                       14u   /*!< Pin number for pin 14 in a port */
 #define PIN15_IDX                       15u   /*!< Pin number for pin 15 in a port */
 #define PIN16_IDX                       16u   /*!< Pin number for pin 16 in a port */
@@ -76,6 +76,7 @@ void BOARD_InitPins(void) {
 
   PORT_SetPinMux(PORTB, PIN16_IDX, kPORT_MuxAlt3);           /* PORTB16 (pin 62) is configured as UART0_RX */
   PORT_SetPinMux(PORTB, PIN17_IDX, kPORT_MuxAlt3);           /* PORTB17 (pin 63) is configured as UART0_TX */
+  PORT_SetPinMux(PORTB, PIN2_IDX, kPORT_PinDisabledOrAnalog); /* PORTB2 (pin 55) is configured as ADC0_SE12 */
   SIM->SOPT5 = ((SIM->SOPT5 &
     (~(SIM_SOPT5_UART0TXSRC_MASK)))                          /* Mask bits to zero which are setting */
       | SIM_SOPT5_UART0TXSRC(SOPT5_UART0TXSRC_UART_TX)       /* UART 0 transmit data source select: UART0_TX pin */
