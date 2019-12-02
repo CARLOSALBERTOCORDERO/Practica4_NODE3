@@ -29,6 +29,11 @@ typedef enum {
 	lin1d3_max_nodeType
 }lin1d3_nodeType_t;
 
+typedef enum {
+	lin1d3_master_msg,
+	lin1d3_slave_msg
+}lin1d3_master_msg_type;
+
 #define message_size_2_bytes_d (0x01)
 #define message_size_4_bytes_d (0x02)
 #define message_size_8_bytes_d (0x03)
