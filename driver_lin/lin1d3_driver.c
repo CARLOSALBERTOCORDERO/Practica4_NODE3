@@ -19,6 +19,10 @@
 
 #define size_of_lin_header_d (2)
 
+
+
+
+
 /*Static function prototypes */
 static void master_task(void *pvParameters);
 static void slave_task(void *pvParameters);
@@ -336,7 +340,15 @@ static void slave_task(void *pvParameters)
         	}
         	ledValueSlave = lin1p3_message_master[0];
         }
-        /* Here you have to handle the LED */
+        if ( ledValueSlave == 1)
+        {
+        	LED_BLUE_ON();/* Here you have to handle the LED */
+        }
+        else
+        {
+        	LED_BLUE_OFF();
+        }
+
     }
 }
 

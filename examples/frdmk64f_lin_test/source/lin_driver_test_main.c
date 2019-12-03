@@ -53,6 +53,10 @@
 #define DEMO_ADC16_CHANNEL_GROUP (0U)
 #define DEMO_ADC16_USER_CHANNEL (12U)
 
+/* LED AZUL*/
+#define BOARD_LED_B_GPIO BOARD_LED_BLUE_GPIO
+#define BOARD_LED_B_GPIO_PIN BOARD_LED_BLUE_GPIO_PIN
+
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
@@ -118,7 +122,14 @@ int main(void)
     NVIC_SetPriority(MASTER_UART_RX_TX_IRQn, 5);
     NVIC_SetPriority(SLAVE_UART_RX_TX_IRQn, 5);
     ADC_init();
+    /* Define the init structure for the output LED pin*/
+    gpio_pin_config_t led_config = {
+        kGPIO_DigitalOutput,
+        0,
+    };
 
+	GPIO_PinInit(BOARD_LED_B_GPIO, BOARD_LED_B_GPIO_PIN, &led_config);
+	LED_BLUE_OFF();
 
     if (xTaskCreate(test_task, "test_task", test_task_heap_size_d, NULL, init_task_PRIORITY, NULL) != pdPASS)
     {
