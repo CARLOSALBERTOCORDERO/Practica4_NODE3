@@ -29,9 +29,11 @@ static void slave_task(void *pvParameters);
 static uint8_t parityBitP0(uint8_t header);
 static uint8_t parityBitP1(uint8_t header);
 static uint8_t checksum(uint8_t * data, uint8_t dataLength);
+static lin1d3_master_msg_T masterMsgTypefromID(uint8_t ID);
 
 /* variables */
-static lin1d3_master_msg_type masterMsgType[4] = {lin1d3_master_msg, lin1d3_master_msg, lin1d3_slave_msg, lin1d3_master_msg};
+static lin1d3_master_msg_type_ID_T lin1d3_master_msg_type_ID_map[lin1d3_msg_num] = {{app_message_id_1_d, lin1d3_master_msg},\
+													{app_message_id_2_d,lin1d3_slave_msg },{app_message_id_2_d, lin1d3_master_msg}};
 static uint8_t ledValue = 1;
 static uint8_t ledValueSlave = 0;
 
@@ -112,7 +114,6 @@ static void master_task(void *pvParameters)
 {
 	lin1d3_handle_t* handle = (lin1d3_handle_t*)pvParameters;
 	uint8_t  ID;
-	uint8_t  synch_break_byte = 0;
 	uint8_t  lin1p3_header[2] = {0x55, 0x00};
 	uint8_t  lin1p3_master_data[9] = {};
 	uint8_t  lin1p3_message[size_of_uart_buffer];
@@ -121,6 +122,7 @@ static void master_task(void *pvParameters)
 	uint8_t  msg_idx;
 	uint8_t headerAux = 0u;
 	uint8_t chckSumAux = 0u;
+	lin1d3_master_msg_T masterMsgType_t = lin1d3_master_msg;
 
 	if(handle == NULL) {
 		vTaskSuspend(NULL);
@@ -152,7 +154,7 @@ static void master_task(void *pvParameters)
     while(1) {
     	/* Wait for messages on the Queue */
         if(xQueueReceive(handle->node_queue, &ID, portMAX_DELAY)){
-
+        	masterMsgType_t = masterMsgTypefromID(ID);
         	msg_idx = 0;
         	/*Look for the ID in the message table */
         	while(msg_idx < lin1d3_max_supported_messages_per_node_cfg_d) {
@@ -192,7 +194,7 @@ static void master_task(void *pvParameters)
         	handle->uart_rtos_handle.base->C2 |= 0x01;
         	handle->uart_rtos_handle.base->C2 &= 0xFE;
             vTaskDelay(1);// make a small pause to prevent issues due to Rx slow break detection
-            if(lin1d3_master_msg == masterMsgType[ID&0x03])
+            if(lin1d3_master_msg == masterMsgType_t)
             {
             	message_size+=1;
             	/* Send the header */
@@ -238,6 +240,7 @@ static void slave_task(void *pvParameters)
 	uint8_t headerAuxP0 = 0u;
 	uint8_t headerAuxP1 = 0u;
 	uint8_t chckSumAux = 0u;
+	lin1d3_master_msg_T masterMsgType_t = lin1d3_master_msg;
 
 
 	if(handle == NULL) {
@@ -293,6 +296,7 @@ static void slave_task(void *pvParameters)
     	}
     	/* Get the message ID */
     	ID = (lin1p3_header[1] & 0xFC)>>2;
+    	masterMsgType_t = masterMsgTypefromID(ID);
     	/* If the header is correct, check if the message is in the table */
     	msg_idx = 0;
     	/*Look for the ID in the message table */
@@ -320,7 +324,7 @@ static void slave_task(void *pvParameters)
     		case 0x03: message_size = 8;
     		break;
     	}
-        if(lin1d3_master_msg == masterMsgType[ID&0x03])
+        if(lin1d3_master_msg == masterMsgType_t)
         {
 			/* TODO: Add the checksum to the message */
 			chckSumAux = checksum((uint8_t *)&lin1p3_message[0], message_size);
@@ -399,4 +403,20 @@ static uint8_t checksum(uint8_t * data, uint8_t dataLength)
     returnVal = auxSum % 255;
 
     return returnVal;
+}
+
+static lin1d3_master_msg_T masterMsgTypefromID(uint8_t ID)
+{
+	uint8_t index = 0;
+	lin1d3_master_msg_T lin1d3_master_msg_t= lin1d3_master_msg;
+	uint8_t msgNum = sizeof(lin1d3_master_msg_type_ID_map)/sizeof(lin1d3_master_msg_type_ID_T);
+    for(index = 0; msgNum > index; index++)
+    {
+    	if(ID == lin1d3_master_msg_type_ID_map[index].ID)
+    	{
+    		lin1d3_master_msg_t = lin1d3_master_msg_type_ID_map[index].lin1d3_master_msg_type;
+    		index = msgNum;
+    	}
+    }
+    return lin1d3_master_msg_t;
 }

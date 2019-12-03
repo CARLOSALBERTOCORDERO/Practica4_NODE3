@@ -44,9 +44,7 @@
 #define init_task_PRIORITY (configMAX_PRIORITIES - 2)
 #define test_task_heap_size_d	(192)
 
-#define app_message_id_1_d (0x01<<2|message_size_2_bytes_d)
-#define app_message_id_2_d (0x02<<2|message_size_4_bytes_d)
-#define app_message_id_3_d (0x03<<2|message_size_8_bytes_d)
+
 
 /*ADC configuration */
 #define DEMO_ADC16_BASE (ADC0)
