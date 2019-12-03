@@ -27,8 +27,7 @@ static uint8_t parityBitP1(uint8_t header);
 static uint8_t checksum(uint8_t * data, uint8_t dataLength);
 
 /* variables */
-static lin1d3_master_msg_type masterMsgType[3] = {lin1d3_master_msg, lin1d3_master_msg, lin1d3_slave_msg, lin1d3_master_msg};
-static uint8_t masterMsgDataLen[3] = {0, 0, 1, 0};
+static lin1d3_master_msg_type masterMsgType[4] = {lin1d3_master_msg, lin1d3_master_msg, lin1d3_slave_msg, lin1d3_master_msg};
 static uint8_t ledValue = 1;
 static uint8_t ledValueSlave = 0;
 
@@ -183,7 +182,7 @@ static void master_task(void *pvParameters)
         		case 0x03: message_size = 8;
         		break;
         	}
-        	message_size+=1;
+
         	/* Send a Break It is just sending one byte 0, *** CHANGE THIS WITH A REAL SYNCH BREAK ****/
             /* Send the break signal */
         	handle->uart_rtos_handle.base->C2 |= 0x01;
@@ -191,6 +190,7 @@ static void master_task(void *pvParameters)
             vTaskDelay(1);// make a small pause to prevent issues due to Rx slow break detection
             if(lin1d3_master_msg == masterMsgType[ID&0x03])
             {
+            	message_size+=1;
             	/* Send the header */
             	UART_RTOS_Send(&(handle->uart_rtos_handle), (uint8_t *)lin1p3_header, size_of_lin_header_d);
             	/* Wait for the response */
@@ -211,6 +211,8 @@ static void master_task(void *pvParameters)
             	UART_RTOS_Send(&(handle->uart_rtos_handle), (uint8_t *)lin1p3_header, size_of_lin_header_d);
             	vTaskDelay(1);// make a small pause
             	lin1p3_master_data[0] = ledValue;
+    			chckSumAux = checksum((uint8_t *)&lin1p3_master_data[0], message_size);
+    			lin1p3_master_data[message_size] = chckSumAux;
             	UART_RTOS_Send(&(handle->uart_rtos_handle), (uint8_t *)lin1p3_master_data, (message_size + 1));
 
             }
@@ -232,6 +234,7 @@ static void slave_task(void *pvParameters)
 	uint8_t headerAuxP0 = 0u;
 	uint8_t headerAuxP1 = 0u;
 	uint8_t chckSumAux = 0u;
+
 
 	if(handle == NULL) {
 		vTaskSuspend(NULL);
@@ -324,7 +327,13 @@ static void slave_task(void *pvParameters)
         }
         else
         {
+
         	UART_RTOS_Receive(&(handle->uart_rtos_handle), lin1p3_message_master, (message_size+1), &n);
+        	chckSumAux = checksum((uint8_t *)&lin1p3_message_master[0], message_size);
+        	if(chckSumAux != lin1p3_message_master[message_size])
+        	{
+        		continue;
+        	}
         	ledValueSlave = lin1p3_message_master[0];
         }
         /* Here you have to handle the LED */
