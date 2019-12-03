@@ -26,6 +26,12 @@ static uint8_t parityBitP0(uint8_t header);
 static uint8_t parityBitP1(uint8_t header);
 static uint8_t checksum(uint8_t * data, uint8_t dataLength);
 
+/* variables */
+static lin1d3_master_msg_type masterMsgType[3] = {lin1d3_master_msg, lin1d3_master_msg, lin1d3_slave_msg, lin1d3_master_msg};
+static uint8_t masterMsgDataLen[3] = {0, 0, 1, 0};
+static uint8_t ledValue = 1;
+static uint8_t ledValueSlave = 0;
+
 /******************************************************************************
  * Public functions
  *
@@ -104,7 +110,8 @@ static void master_task(void *pvParameters)
 	lin1d3_handle_t* handle = (lin1d3_handle_t*)pvParameters;
 	uint8_t  ID;
 	uint8_t  synch_break_byte = 0;
-	uint8_t  lin1p3_header[] = {0x55, 0x00};
+	uint8_t  lin1p3_header[2] = {0x55, 0x00};
+	uint8_t  lin1p3_master_data[9] = {};
 	uint8_t  lin1p3_message[size_of_uart_buffer];
 	uint8_t  message_size = 0;
 	size_t n;
@@ -155,8 +162,6 @@ static void master_task(void *pvParameters)
         	/* If the message ID was not found then ignore it */
         	if(msg_idx == lin1d3_max_supported_messages_per_node_cfg_d) continue;
 
-
-
         	/* Put the ID into the header */
         	lin1p3_header[1] = ID<<2;
         	/* TODO: put the parity bits */
@@ -184,20 +189,31 @@ static void master_task(void *pvParameters)
         	handle->uart_rtos_handle.base->C2 |= 0x01;
         	handle->uart_rtos_handle.base->C2 &= 0xFE;
             vTaskDelay(1);// make a small pause to prevent issues due to Rx slow break detection
+            if(lin1d3_master_msg == masterMsgType[ID&0x03])
+            {
+            	/* Send the header */
+            	UART_RTOS_Send(&(handle->uart_rtos_handle), (uint8_t *)lin1p3_header, size_of_lin_header_d);
+            	/* Wait for the response */
+            	UART_RTOS_Receive(&(handle->uart_rtos_handle), lin1p3_message, message_size, &n);
+            	message_size--;
+            	/* TODO: Check the checksum */
+            	chckSumAux = checksum((uint8_t *)&lin1p3_message[0], message_size);
+            	if(chckSumAux != lin1p3_message[message_size])
+            	{
+            		continue;
+            	}
+            	/* Call the message callback */
+            	handle->config.messageTable[msg_idx].handler((void*)lin1p3_message);
+            }
+            else
+            {
 
-        	/* Send the header */
-        	UART_RTOS_Send(&(handle->uart_rtos_handle), (uint8_t *)lin1p3_header, size_of_lin_header_d);
-        	/* Wait for the response */
-        	UART_RTOS_Receive(&(handle->uart_rtos_handle), lin1p3_message, message_size, &n);
-        	message_size--;
-        	/* TODO: Check the checksum */
-        	chckSumAux = checksum((uint8_t *)&lin1p3_message[0], message_size);
-        	if(chckSumAux != lin1p3_message[message_size])
-        	{
-        		continue;
-        	}
-        	/* Call the message callback */
-        	handle->config.messageTable[msg_idx].handler((void*)lin1p3_message);
+            	UART_RTOS_Send(&(handle->uart_rtos_handle), (uint8_t *)lin1p3_header, size_of_lin_header_d);
+            	vTaskDelay(1);// make a small pause
+            	lin1p3_master_data[0] = ledValue;
+            	UART_RTOS_Send(&(handle->uart_rtos_handle), (uint8_t *)lin1p3_master_data, (message_size + 1));
+
+            }
         }
     }
 }
@@ -208,6 +224,7 @@ static void slave_task(void *pvParameters)
 	uint8_t  ID;
 	uint8_t  lin1p3_header[size_of_lin_header_d];
 	uint8_t  lin1p3_message[size_of_uart_buffer];
+	uint8_t  lin1p3_message_master[size_of_uart_buffer];
 	uint8_t  message_size = 0;
 	size_t n;
 	uint8_t  msg_idx;
@@ -296,12 +313,21 @@ static void slave_task(void *pvParameters)
     		case 0x03: message_size = 8;
     		break;
     	}
-    	/* TODO: Add the checksum to the message */
-    	chckSumAux = checksum((uint8_t *)&lin1p3_message[0], message_size);
-    	lin1p3_message[message_size] = chckSumAux;
-    	message_size+=1;
-    	/* Send the message data */
-    	UART_RTOS_Send(&(handle->uart_rtos_handle), (uint8_t *)lin1p3_message, message_size);
+        if(lin1d3_master_msg == masterMsgType[ID&0x03])
+        {
+			/* TODO: Add the checksum to the message */
+			chckSumAux = checksum((uint8_t *)&lin1p3_message[0], message_size);
+			lin1p3_message[message_size] = chckSumAux;
+			message_size+=1;
+			/* Send the message data */
+			UART_RTOS_Send(&(handle->uart_rtos_handle), (uint8_t *)lin1p3_message, message_size);
+        }
+        else
+        {
+        	UART_RTOS_Receive(&(handle->uart_rtos_handle), lin1p3_message_master, (message_size+1), &n);
+        	ledValueSlave = lin1p3_message_master[0];
+        }
+        /* Here you have to handle the LED */
     }
 }
 
