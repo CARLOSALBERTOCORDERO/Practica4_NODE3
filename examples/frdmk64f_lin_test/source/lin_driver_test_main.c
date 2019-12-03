@@ -235,12 +235,7 @@ static void	message_1_callback_slave(void* message)
 
 static void	message_2_callback_slave(void* message)
 {
-	uint8_t* message_data = (uint8_t*)message;
 	PRINTF("Slave got message 2 request\r\n");
-	message_data[0] = 79;
-	message_data[1] = 80;
-	message_data[2] = 81;
-	message_data[3] = 82;
 }
 
 static void	message_3_callback_slave(void* message)

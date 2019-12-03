@@ -110,7 +110,8 @@ static void master_task(void *pvParameters)
 	lin1d3_handle_t* handle = (lin1d3_handle_t*)pvParameters;
 	uint8_t  ID;
 	uint8_t  synch_break_byte = 0;
-	uint8_t  lin1p3_header[11] = {0x55, 0x00};
+	uint8_t  lin1p3_header[2] = {0x55, 0x00};
+	uint8_t  lin1p3_master_data[9] = {};
 	uint8_t  lin1p3_message[size_of_uart_buffer];
 	uint8_t  message_size = 0;
 	size_t n;
@@ -161,8 +162,6 @@ static void master_task(void *pvParameters)
         	/* If the message ID was not found then ignore it */
         	if(msg_idx == lin1d3_max_supported_messages_per_node_cfg_d) continue;
 
-
-
         	/* Put the ID into the header */
         	lin1p3_header[1] = ID<<2;
         	/* TODO: put the parity bits */
@@ -208,9 +207,12 @@ static void master_task(void *pvParameters)
             }
             else
             {
-            	lin1p3_header[2] = ledValue;
-            	UART_RTOS_Send(&(handle->uart_rtos_handle), (uint8_t *)lin1p3_header, size_of_lin_header_d + masterMsgDataLen[ID&0x03]);
+
+            	UART_RTOS_Send(&(handle->uart_rtos_handle), (uint8_t *)lin1p3_header, size_of_lin_header_d);
             	vTaskDelay(1);// make a small pause
+            	lin1p3_master_data[0] = ledValue;
+            	UART_RTOS_Send(&(handle->uart_rtos_handle), (uint8_t *)lin1p3_master_data, (message_size + 1));
+
             }
         }
     }
@@ -222,6 +224,7 @@ static void slave_task(void *pvParameters)
 	uint8_t  ID;
 	uint8_t  lin1p3_header[size_of_lin_header_d];
 	uint8_t  lin1p3_message[size_of_uart_buffer];
+	uint8_t  lin1p3_message_master[size_of_uart_buffer];
 	uint8_t  message_size = 0;
 	size_t n;
 	uint8_t  msg_idx;
@@ -321,8 +324,10 @@ static void slave_task(void *pvParameters)
         }
         else
         {
-        	ledValueSlave = lin1p3_header[2];
+        	UART_RTOS_Receive(&(handle->uart_rtos_handle), lin1p3_message_master, (message_size+1), &n);
+        	ledValueSlave = lin1p3_message_master[0];
         }
+        /* Here you have to handle the LED */
     }
 }
 
